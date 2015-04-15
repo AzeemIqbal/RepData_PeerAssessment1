@@ -6,20 +6,128 @@ output:
 ---
 
 
-## Loading and preprocessing the data
+### Loading and preprocessing the data  
 
+Reading the data here is straightforward, we simply use the read.csv command with its defaults. We also run the ggplot2 package for later use
+   
+   
+```{r, echo=TRUE}
+library(ggplot2)
+library(reshape2)
+data <- read.csv('activity.csv')
+```
 
 
 ## What is mean total number of steps taken per day?
 
+To calculate the total steps taken per day, we use the tapply function with the date as our factor.
 
+```{r, echo=TRUE}
+daySums <- tapply(data$steps, data$date, sum, na.rm=TRUE)
+daySums
+```
+     
+Below is a histogram of the total steps taken each day, with the mean and median displayed.
 
+```{r, echo=TRUE}
+hist(daySums, breaks = 10, col = 'grey', xlab = 'Sum of steps taken per day')
+abline(v = mean(daySums), lty=2, col = 'red')
+abline(v = median(daySums), lty=2, col = 'blue')
+legend('topright', c('mean', 'median'), col = c('red', 'blue'), lty = c(2, 2))
+```
+   
+We can also see the exact values of the mean and median.
+   
+```{r,echo=TRUE}   
+mean(daySums)
+median(daySums)
+```
+     
 ## What is the average daily activity pattern?
+   
+Similarly to before, we use the tapply function to apply the mean over a factor of intervals.
 
+```{r, echo=TRUE}
+dailyAvg <- tapply(data$steps, data$interval, mean, na.rm=TRUE)
+plot(names(dailyAvg), dailyAvg, type = "l", xlab = 'Time', ylab = 'Average')
+```
+
+We can also find and return the time interval containing the max mean number of steps.
+
+```{r,echo=TRUE}
+dailyAvg <- as.data.frame(dailyAvg)
+dailyAvg$Time <- rownames(dailyAvg)
+dailyAvg$Time[which(dailyAvg[1] == max(dailyAvg[1]))]
+```
+
+So our answer is 8:35-8:40.
 
 
 ## Imputing missing values
 
+To see how many NAs exist in our data, we use the is.na function.      
+
+```{r, echo=TRUE}
+table(is.na(data$steps))
+```
+     
+So we have 2304 NA values, to replace them I looped over the data frame and replaced with the average value for that time interval.
+
+
+
+```{r,echo=TRUE}
+data1 <- data
+data1$interval <- as.character(data1$interval)
+for(i in 1:length(data1$steps)){
+  if(is.na(data1$steps[i])){
+    data1$steps[i] <- dailyAvg[data1$interval[i],1]
+    }
+  }
+head(data1)
+head(data)
+```
+     
+As you can see, data1 has the NA values from the original data frame replaced with the averages for that interval.     
+
+     
+```{r, echo=TRUE}
+daySums1 <- tapply(data1$steps, data1$date, sum, na.rm=TRUE)
+hist(daySums1, breaks = 20, col = 'grey', xlab = 'Sum of steps taken per day')
+abline(v = mean(daySums1), lty = 2, col = 'red')
+abline(v = median(daySums1), lty = 2, col = 'blue')
+legend('topright',c('mean', 'median'), col = c('red', 'blue'), lty=c(2, 2))
+```
+   
+The plots look very different, we can also see the exact values of the mean and median which are the same now.     
+
+   
+```{r,echo=TRUE}   
+mean(daySums1)
+median(daySums1)
+```
+
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+First we have to do some manipulating of the data to sort between weekdays and weekend. Then we perform similar operations as before to find the average of each time interval, but this time weekdays and weekends are separated. Finally, we plot.    
+
+```{r, echo=TRUE}
+data$date <- weekdays(as.POSIXct(data$date))
+for(j in 1:length(data$date)){
+  if(data$date[j] %in% c('Saturday', 'Sunday')){
+    data$date[j] <- 'Weekend'
+    } else {
+      data$date[j] <- 'Weekday'
+    }
+  }
+dayAvg <- tapply(data[data$date == 'Weekday', ]$steps, data[data$date == 'Weekday', ]$interval, mean, na.rm=TRUE)
+endAvg <- tapply(data[data$date == 'Weekend', ]$steps, data[data$date == 'Weekend', ]$interval, mean, na.rm=TRUE)
+dayAvg <- as.data.frame(dayAvg)
+dayAvg$Time <- rownames(dayAvg)
+dayAvg$endAvg <- endAvg
+rownames(dayAvg) <- c()
+colnames(dayAvg) <- c('Weekdays', 'Time', 'Weekends')
+dayAvg <- melt(dayAvg, id = 'Time')
+dayAvg$Time <- as.numeric(dayAvg$Time)
+ggplot(dayAvg, aes(x=Time, y=value)) + geom_line() + ylab('Average') + facet_grid(~variable)
